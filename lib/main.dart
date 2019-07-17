@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -5,8 +7,10 @@ import 'package:hn_app/src/article.dart';
 import 'package:hn_app/src/favorites.dart';
 import 'package:hn_app/src/notifiers/hn_api.dart';
 import 'package:hn_app/src/notifiers/prefs.dart';
+import 'package:hn_app/src/serializers.dart';
 import 'package:hn_app/src/widgets/headline.dart';
 import 'package:hn_app/src/widgets/loading_info.dart';
+import 'package:hn_app/src/widgets/request.dart';
 import 'package:hn_app/src/widgets/search.dart';
 import 'package:provider/provider.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -84,12 +88,6 @@ class _MyHomePageState extends State<MyHomePage> {
   Widget build(BuildContext context) {
     final hn = Provider.of<HackerNewsNotifier>(context);
     final tabs = hn.tabs;
-    final current = tabs[_currentIndex];
-
-    if (current.articles.isEmpty && !current.isLoading) {
-      // New tab with no data. Let's fetch some.
-      current.refresh();
-    }
 
     return Scaffold(
       appBar: AppBar(
@@ -106,7 +104,7 @@ class _MyHomePageState extends State<MyHomePage> {
             onPressed: () async {
               var result = await showSearch(
                 context: context,
-                delegate: ArticleSearch(hn.allArticles),
+                delegate: ArticleSearch(UnmodifiableListView([])), //hn.allArticles),
               );
               if (result != null) {
                 Navigator.push(
@@ -142,7 +140,7 @@ class _MyHomePageState extends State<MyHomePage> {
         itemCount: tabs.length,
         itemBuilder: (context, index) => ChangeNotifierProvider.value(
               notifier: tabs[index],
-              child: _TabPage(index),
+              child: _TabPage(tabs[index]),
             ),
       ),
       bottomNavigationBar: BottomNavigationBar(
@@ -254,36 +252,46 @@ class _Item extends StatelessWidget {
 }
 
 class _TabPage extends StatelessWidget {
-  final int index;
+  _TabPage(this.tab, {Key key}) : super(key: key);
 
-  _TabPage(this.index, {Key key}) : super(key: key);
+  final HackerNewsTab tab;
+
+  static const _baseUrl = 'https://hacker-news.firebaseio.com/v0/';
+  String get partUrl => tab.storiesType == StoriesType.topStories ? 'top' : 'new';
+  String get storiesUrl => '$_baseUrl${partUrl}stories.json';
 
   @override
   Widget build(BuildContext context) {
-    final tab = Provider.of<HackerNewsTab>(context);
-    final articles = tab.articles;
-    final prefs = Provider.of<PrefsNotifier>(context);
 
-    if (tab.isLoading && articles.isEmpty) {
-      return Center(
-        child: CircularProgressIndicator(),
-      );
-    }
+    return RequestBuilder<List<int>>(
+      request: Get(storiesUrl),
+      map: (x) => List<int>.from(x).take(10).toList(),
+      builder: (_, List<int> articleIds) {
 
-    return RefreshIndicator(
-      color: Colors.white,
-      backgroundColor: Colors.black,
-      onRefresh: () => tab.refresh(),
-      child: ListView(
-        key: PageStorageKey(index),
-        children: [
-          for (final article in articles)
-            _Item(
-              article: article,
-              prefs: prefs,
-            )
-        ],
-      ),
+        return MultiRequestBuilder<Article>(
+          requests: articleIds.map((id) => Get("${_baseUrl}item/$id.json")),
+          map: (x) => standardSerializers.deserializeWith(Article.serializer, x),
+          filter: (x) => x.where((a) => a.title != null),
+          builder: (BuildContext context, List<Article> articles) {
+
+            return RefreshIndicator(
+              color: Colors.white,
+              backgroundColor: Colors.black,
+              onRefresh: (context.ancestorStateOfType(TypeMatcher<RequestBuilderState>()) as RequestBuilderState).reload,
+              child: ListView(
+                key: PageStorageKey(tab),
+                children: [
+                  for (final article in articles)
+                    _Item(
+                      article: article,
+                      prefs: Provider.of<PrefsNotifier>(context),
+                    )
+                ],
+              ),
+            );
+          }
+        );
+      }
     );
   }
 }
