@@ -98,23 +98,23 @@ class _MyHomePageState extends State<MyHomePage> {
         // leading: Consumer<LoadingTabsCount>(
         //     builder: (context, loading, child) => LoadingInfo(loading)),
         elevation: 0.0,
-        actions: [
-          IconButton(
-            icon: Icon(Icons.search),
-            onPressed: () async {
-              var result = await showSearch(
-                context: context,
-                delegate: ArticleSearch(UnmodifiableListView([])), //hn.allArticles),
-              );
-              if (result != null) {
-                Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => HackerNewsWebPage(result.url)));
-              }
-            },
-          ),
-        ],
+        // actions: [
+        //   IconButton(
+        //     icon: Icon(Icons.search),
+        //     onPressed: () async {
+        //       var result = await showSearch(
+        //         context: context,
+        //         delegate: ArticleSearch(hn.allArticles),
+        //       );
+        //       if (result != null) {
+        //         Navigator.push(
+        //             context,
+        //             MaterialPageRoute(
+        //                 builder: (context) => HackerNewsWebPage(result.url)));
+        //       }
+        //     },
+        //   ),
+        // ],
         // TODO: loading value -- why is it never not 1?
         // TODO: Make an iconButton that opens a drawer because
         // Scaffold hard-codes the drawer behavior.
@@ -125,13 +125,7 @@ class _MyHomePageState extends State<MyHomePage> {
           //return LoadingInfo(loading);
           return AnimatedSwitcher(
             duration: Duration(milliseconds: 500),
-            child: isLoading
-                ? LoadingInfo(loading)
-                : Drawer(
-                    child: Container(
-                        color: Colors.white,
-                        height: 300,
-                        child: Text('favorites page'))),
+            child: LoadingInfo(loading),
           );
         }),
       ),
